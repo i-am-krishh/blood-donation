@@ -1,12 +1,25 @@
 const Camp = require('../models/Camp');
 const User = require('../models/User');
+const Notification = require('../models/Notification'); // Added Notification model
 const { validateCoordinates } = require('../utils/validation');
 
-// Get all camps (with filters)
+// Admin: Get all camps with advanced filtering
 exports.getAllCamps = async (req, res) => {
   try {
-    const { status, search } = req.query;
-    const query = { status: 'approved' }; // Default to approved camps
+    const { status, search, startDate } = req.query;
+    
+    // Build query
+    let query = {};
+    
+    // Add status filter if provided
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Add date filter if provided
+    if (startDate) {
+      query.date = { $gte: new Date(startDate) };
+    }
 
     // Add search filter if provided
     if (search) {
@@ -19,31 +32,248 @@ exports.getAllCamps = async (req, res) => {
 
     const camps = await Camp.find(query)
       .populate('organizer', 'name email')
-      .populate('registeredDonors.donor', 'name email bloodType')
-      .sort({ date: 1 })
-      .lean();
+      .lean()
+      .exec();
 
-    // Transform data to ensure consistent format
-    const transformedCamps = camps.map(camp => ({
-      _id: camp._id,
-      name: camp.name,
-      venue: camp.venue,
-      date: camp.date,
-      time: camp.time,
-      capacity: camp.capacity,
-      organizer: camp.organizer || { name: 'Unknown', email: 'N/A' },
-      registeredDonors: camp.registeredDonors || [],
-      status: camp.status,
-      description: camp.description,
-      requirements: camp.requirements || [],
-      contactInfo: camp.contactInfo || { phone: 'N/A', email: 'N/A' },
-      location: camp.location || { type: 'Point', coordinates: [0, 0] }
-    }));
+    // Calculate analytics for each camp
+    const campsWithAnalytics = camps.map(camp => {
+      const totalRegistrations = camp.registeredDonors?.length || 0;
+      const actualDonorsCount = camp.actualDonors?.length || 0;
+      const registrationRate = camp.capacity > 0 ? (totalRegistrations / camp.capacity) * 100 : 0;
+      const donationRate = totalRegistrations > 0 ? (actualDonorsCount / totalRegistrations) * 100 : 0;
 
-    res.json(transformedCamps);
+      return {
+        ...camp,
+        analytics: {
+          totalRegistrations,
+          actualDonors: actualDonorsCount,
+          registrationRate,
+          donationRate
+        }
+      };
+    });
+
+    res.json(campsWithAnalytics);
   } catch (error) {
     console.error('Error in getAllCamps:', error);
+    res.status(500).json({ 
+      message: 'Error fetching camps', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+// Admin: Approve or reject camp
+exports.updateCampStatus = async (req, res) => {
+  try {
+    const { campId } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['pending', 'approved', 'cancelled', 'ongoing', 'completed'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const camp = await Camp.findById(campId);
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    // Check if status transition is valid
+    const validTransitions = {
+      pending: ['approved', 'cancelled'],
+      approved: ['ongoing', 'cancelled'],
+      ongoing: ['completed', 'cancelled'],
+      completed: [], // No transitions allowed from completed
+      cancelled: [] // No transitions allowed from cancelled
+    };
+
+    if (!validTransitions[camp.status].includes(status)) {
+      return res.status(400).json({
+        message: `Cannot transition from ${camp.status} to ${status}`
+      });
+    }
+
+    // Update status
+    camp.status = status;
+    await camp.save();
+
+    // If camp is approved, send notifications to registered donors
+    if (status === 'approved') {
+      const notifications = camp.registeredDonors.map(donorId => ({
+        recipient: donorId,
+        type: 'camp_approved',
+        message: `The blood donation camp "${camp.name}" has been approved and will be held on ${new Date(camp.date).toLocaleDateString()}`,
+        relatedCamp: camp._id
+      }));
+
+      await Notification.insertMany(notifications);
+    }
+
+    res.json({ message: 'Camp status updated successfully', camp });
+  } catch (error) {
+    console.error('Error in updateCampStatus:', error);
+    res.status(500).json({ message: 'Error updating camp status', error: error.message });
+  }
+};
+
+// Admin: Assign organizer to camp
+exports.assignOrganizer = async (req, res) => {
+  try {
+    const { organizerId } = req.body;
+    const camp = await Camp.findById(req.params.id);
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    const organizer = await User.findById(organizerId);
+    if (!organizer || organizer.role !== 'camp_organizer') {
+      return res.status(400).json({ message: 'Invalid organizer' });
+    }
+
+    camp.organizer = organizerId;
+    await camp.save();
+    res.json(camp);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Admin & Organizer: Get camp analytics
+exports.getCampAnalytics = async (req, res) => {
+  try {
+    const camp = await Camp.findById(req.params.id)
+      .populate('registeredDonors.donor', 'bloodType');
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    // Check authorization
+    if (!req.user.isAdmin && camp.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const analytics = {
+      ...camp.analytics,
+      bloodTypeDistribution: camp.registeredDonors.reduce((acc, reg) => {
+        const bloodType = reg.donor.bloodType;
+        acc[bloodType] = (acc[bloodType] || 0) + 1;
+        return acc;
+      }, {}),
+      registrationTimeline: camp.registeredDonors.reduce((acc, reg) => {
+        const date = reg.registrationDate.toISOString().split('T')[0];
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {}),
+      feedback: {
+        averageRating: camp.analytics.averageRating,
+        comments: camp.registeredDonors
+          .filter(reg => reg.feedback && reg.feedback.comment)
+          .map(reg => ({
+            rating: reg.feedback.rating,
+            comment: reg.feedback.comment,
+            date: reg.feedback.submittedAt
+          }))
+      }
+    };
+
+    res.json(analytics);
+  } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Organizer: Send notification to donors
+exports.sendNotificationToDonors = async (req, res) => {
+  try {
+    const { type, message, sendTo } = req.body;
+    const camp = await Camp.findById(req.params.id);
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    if (camp.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const notification = await camp.sendNotification(type, message, sendTo);
+    res.json(notification);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Organizer: Generate attendance report
+exports.generateAttendanceReport = async (req, res) => {
+  try {
+    const camp = await Camp.findById(req.params.id)
+      .populate('registeredDonors.donor', 'name email bloodType phoneNumber');
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    if (camp.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const report = {
+      campName: camp.name,
+      date: camp.date,
+      venue: camp.venue,
+      totalRegistered: camp.registeredDonors.length,
+      totalAttended: camp.registeredDonors.filter(r => r.status === 'attended').length,
+      totalDonated: camp.registeredDonors.filter(r => r.donationStatus === 'donated').length,
+      donors: camp.registeredDonors.map(reg => ({
+        name: reg.donor.name,
+        email: reg.donor.email,
+        bloodType: reg.donor.bloodType,
+        phone: reg.donor.phoneNumber,
+        status: reg.status,
+        donationStatus: reg.donationStatus,
+        registrationDate: reg.registrationDate
+      }))
+    };
+
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// User: Submit feedback
+exports.submitFeedback = async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const camp = await Camp.findById(req.params.id);
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    const registration = camp.registeredDonors.find(
+      reg => reg.donor.toString() === req.user._id.toString()
+    );
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Not registered for this camp' });
+    }
+
+    registration.feedback = {
+      rating,
+      comment,
+      submittedAt: new Date()
+    };
+
+    await camp.save();
+    res.json({ message: 'Feedback submitted successfully' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 };
 
@@ -136,40 +366,72 @@ exports.createCamp = async (req, res) => {
       capacity,
       description,
       requirements,
-      contactPhone,
-      contactEmail,
-      latitude,
-      longitude
+      contactInfo,
+      location
     } = req.body;
 
-    // Validate coordinates
-    if (!validateCoordinates(latitude, longitude)) {
-      return res.status(400).json({ message: 'Invalid coordinates' });
+    // Validate required fields
+    if (!name || !venue || !date || !time || !capacity) {
+      return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
+    // Validate capacity
+    if (capacity < 1) {
+      return res.status(400).json({ message: 'Capacity must be at least 1' });
+    }
+
+    // Validate date
+    const campDate = new Date(date);
+    if (campDate < new Date()) {
+      return res.status(400).json({ message: 'Camp date cannot be in the past' });
+    }
+
+    // Validate location coordinates
+    if (!location || !location.latitude || !location.longitude || !location.address) {
+      return res.status(400).json({ message: 'Please provide valid location details' });
+    }
+
+    // Create new camp
     const camp = new Camp({
       name,
       venue,
-      date,
+      date: campDate,
       time,
       capacity,
       description,
-      requirements: requirements || ['Age between 18-65', 'Weight above 50kg', 'No recent surgeries'],
-      contactInfo: {
-        phone: contactPhone,
-        email: contactEmail
-      },
-      location: {
-        type: 'Point',
-        coordinates: [longitude, latitude]
-      },
-      organizer: req.user._id
+      requirements,
+      contactInfo,
+      location,
+      organizer: req.user._id,
+      status: 'pending',
+      analytics: {
+        registrationRate: 0,
+        donationRate: 0,
+        totalRegistrations: 0,
+        actualDonors: 0
+      }
     });
 
     await camp.save();
-    res.status(201).json(camp);
+
+    // Send notification to admin
+    const admins = await User.find({ role: 'admin' });
+    const notifications = admins.map(admin => ({
+      recipient: admin._id,
+      type: 'new_camp',
+      message: `New blood donation camp "${name}" requires approval`,
+      relatedCamp: camp._id
+    }));
+
+    await Notification.insertMany(notifications);
+
+    res.status(201).json({
+      message: 'Camp created successfully and pending approval',
+      camp
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error in createCamp:', error);
+    res.status(500).json({ message: 'Error creating camp', error: error.message });
   }
 };
 

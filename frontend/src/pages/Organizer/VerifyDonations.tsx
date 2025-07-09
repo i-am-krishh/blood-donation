@@ -101,33 +101,40 @@ const VerifyDonations = () => {
   const fetchDonations = async (campId: string) => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/camps/${campId}/registrations`, { // Changed endpoint to get registrations
+      const response = await fetch(`/api/camps/${campId}/registrations`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch registered donors');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch registered donors');
+      }
 
-      const data = await response.json();
-      const formattedDonations = data.registrations.map((registration: any) => ({
+      const { registrations } = await response.json();
+      
+      // Transform the response data to match the Donation interface
+      const formattedDonations = registrations.map((registration: any) => ({
         id: registration.id,
-        userId: registration.id,
-        userName: registration.name,
-        bloodType: registration.bloodType,
+        userId: registration.id, // Using the donor's ID
+        userName: registration.name || 'Unknown User',
+        bloodType: registration.bloodType || 'Not Specified',
         units: 0,
         donationDate: registration.registrationDate,
-        status: 'pending',
-        notes: '',
-        hemoglobinLevel: null,
-        bloodPressure: null,
-        weight: null
+        campId: campId,
+        campName: selectedCampData?.name || '',
+        status: registration.status || 'pending',
+        notes: registration.notes || ''
       }));
 
       setDonations(formattedDonations);
-      setIsLoading(false);
+      setError(null);
     } catch (err) {
-      setError('Failed to load registered donors. Please try again later.');
+      setError(err instanceof Error ? err.message : 'Failed to load registered donors. Please try again later.');
+      setDonations([]);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -409,8 +416,10 @@ const VerifyDonations = () => {
                           setSelectedDonation(donation);
                           setShowVerificationModal(true);
                         }}
+                        className="flex items-center gap-2"
                       >
-                        Verify
+                        <Droplet className="w-4 h-4" />
+                        Mark as Donated
                       </Button>
                     )}
                   </td>

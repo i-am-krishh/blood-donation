@@ -13,12 +13,27 @@
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
   border: 3px solid #f3f3f3;
   border-top: 3px solid #e11d48;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+/* Size variants */
+.spinner.w-4 {
+  border-width: 2px;
+}
+
+.spinner.w-8 {
+  border-width: 3px;
+}
+
+.spinner.w-12 {
+  border-width: 4px;
+}
+
+.spinner.w-16 {
+  border-width: 5px;
 }
 
 .blood-drop {

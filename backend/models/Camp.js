@@ -13,11 +13,18 @@ const campSchema = new mongoose.Schema({
   },
   date: {
     type: Date,
-    required: [true, 'Date is required']
+    required: [true, 'Date is required'],
+    validate: {
+      validator: function(value) {
+        return value >= new Date();
+      },
+      message: 'Camp date cannot be in the past'
+    }
   },
   time: {
     type: String,
-    required: [true, 'Time is required']
+    required: [true, 'Time is required'],
+    trim: true
   },
   capacity: {
     type: Number,
@@ -29,10 +36,11 @@ const campSchema = new mongoose.Schema({
     required: [true, 'Description is required'],
     trim: true
   },
-  requirements: [{
+  requirements: {
     type: String,
+    required: [true, 'Requirements are required'],
     trim: true
-  }],
+  },
   contactInfo: {
     phone: {
       type: String,
@@ -43,91 +51,93 @@ const campSchema = new mongoose.Schema({
       type: String,
       required: [true, 'Contact email is required'],
       trim: true,
-      lowercase: true
+      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
     }
   },
   location: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
+    latitude: {
+      type: Number,
+      required: [true, 'Latitude is required']
     },
-    coordinates: {
-      type: [Number],
-      required: true
+    longitude: {
+      type: Number,
+      required: [true, 'Longitude is required']
+    },
+    address: {
+      type: String,
+      required: [true, 'Address is required'],
+      trim: true
     }
   },
   organizer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: [true, 'Organizer is required']
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'cancelled', 'completed'],
+    enum: ['pending', 'approved', 'ongoing', 'completed', 'cancelled'],
     default: 'pending'
   },
   registeredDonors: [{
-    donor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    registrationDate: {
-      type: Date,
-      default: Date.now
-    },
-    status: {
-      type: String,
-      enum: ['pending', 'confirmed', 'cancelled'],
-      default: 'pending'
-    },
-    donationStatus: {
-      type: String,
-      enum: ['not_donated', 'donated', 'no_show'],
-      default: 'not_donated'
-    },
-    notes: String
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
   }],
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  actualDonors: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
+  analytics: {
+    registrationRate: {
+      type: Number,
+      default: 0
+    },
+    donationRate: {
+      type: Number,
+      default: 0
+    },
+    totalRegistrations: {
+      type: Number,
+      default: 0
+    },
+    actualDonors: {
+      type: Number,
+      default: 0
+    }
   }
+}, {
+  timestamps: true
 });
 
-// Create a 2dsphere index for location-based queries
-campSchema.index({ location: '2dsphere' });
-
-// Update the updatedAt timestamp before saving
+// Pre-save middleware to update analytics
 campSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
+  if (this.isModified('registeredDonors') || this.isModified('actualDonors')) {
+    this.analytics = {
+      totalRegistrations: this.registeredDonors.length,
+      actualDonors: this.actualDonors.length,
+      registrationRate: (this.registeredDonors.length / this.capacity) * 100,
+      donationRate: this.registeredDonors.length > 0 ? 
+        (this.actualDonors.length / this.registeredDonors.length) * 100 : 0
+    };
+  }
   next();
 });
 
-// Virtual field for registered donors count
-campSchema.virtual('registeredDonorsCount').get(function() {
-  return this.registeredDonors.length;
-});
-
-// Virtual field for available slots
-campSchema.virtual('availableSlots').get(function() {
-  return this.capacity - this.registeredDonors.length;
-});
-
-// Method to check if camp is full
-campSchema.methods.isFull = function() {
+// Virtual for checking if camp is full
+campSchema.virtual('isFull').get(function() {
   return this.registeredDonors.length >= this.capacity;
+});
+
+// Method to check if a user is registered
+campSchema.methods.isUserRegistered = function(userId) {
+  return this.registeredDonors.includes(userId);
 };
 
-// Method to check if a donor is already registered
-campSchema.methods.isDonorRegistered = function(donorId) {
-  return this.registeredDonors.some(registration => 
-    registration.donorId.toString() === donorId.toString()
-  );
+// Method to check if a user has donated
+campSchema.methods.hasUserDonated = function(userId) {
+  return this.actualDonors.includes(userId);
 };
 
 const Camp = mongoose.model('Camp', campSchema);

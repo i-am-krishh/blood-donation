@@ -89,7 +89,7 @@ if (process.env.NODE_ENV === 'production') {
 // Start server with port finding
 const startServer = async () => {
   try {
-    const port = process.env.PORT || 5000;
+    const port = process.env.PORT || 5000; // Changed from 5000 to 5001
     
     const server = app.listen(port, () => {
       console.log(`Server running on port ${port}`);
