@@ -11,13 +11,67 @@ const { check, validationResult } = require('express-validator');
 // @access  Admin
 router.get('/users', [auth, isAdmin], async (req, res) => {
   try {
-    const users = await User.find()
+    // Add query parameters for filtering
+    const { role, search, status } = req.query;
+    
+    // Build query object
+    let query = {};
+    
+    // Add role filter if provided
+    if (role && role !== 'all') {
+      query.role = role;
+    }
+    
+    // Add status filter if provided
+    if (status && status !== 'all') {
+      query.isApproved = status === 'approved';
+    }
+    
+    // Add search filter if provided
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const users = await User.find(query)
       .select('-password')
-      .sort({ createdAt: -1 });
-    res.json(users);
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!users || users.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: 'No users found'
+      });
+    }
+
+    // Transform user data to ensure consistent format
+    const transformedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'donor',
+      bloodType: user.bloodType || '',
+      isApproved: typeof user.isApproved === 'boolean' ? user.isApproved : false,
+      createdAt: user.createdAt || new Date(),
+      lastDonationDate: user.lastDonationDate || null,
+      totalDonations: user.totalDonations || 0
+    }));
+
+    res.json({
+      success: true,
+      data: transformedUsers
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error in GET /api/admin/users:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching users',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
@@ -96,6 +150,36 @@ router.patch('/users/:id/status', [auth, isAdmin], async (req, res) => {
   }
 });
 
+// @route   PATCH /api/admin/users/:id/role
+// @desc    Update user role
+// @access  Admin
+router.patch('/users/:id/role', [auth, isAdmin], async (req, res) => {
+  try {
+    const { role } = req.body;
+    
+    // Validate role
+    const validRoles = ['donor', 'camp_organizer', 'admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // @route   PATCH /api/admin/camps/:id/status
 // @desc    Update camp status (approve/cancel)
 // @access  Admin
@@ -124,13 +208,51 @@ router.patch('/camps/:id/status', [auth, isAdmin], async (req, res) => {
 router.get('/donations', [auth, isAdmin], async (req, res) => {
   try {
     const donations = await Donation.find()
-      .populate('donorId', 'name email')
-      .populate('campId', 'name venue')
-      .sort({ createdAt: -1 });
-    res.json(donations);
+      .populate('donor', 'name email bloodType')
+      .populate('camp', 'name venue')
+      .sort({ donationDate: -1 })
+      .lean();
+
+    if (!donations) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Transform donations to match frontend expectations
+    const transformedDonations = donations.map(donation => ({
+      _id: donation._id,
+      donorId: {
+        _id: donation.donor._id,
+        name: donation.donor.name,
+        email: donation.donor.email,
+        bloodType: donation.donor.bloodType
+      },
+      campId: {
+        _id: donation.camp._id,
+        name: donation.camp.name,
+        venue: donation.camp.venue
+      },
+      status: donation.status,
+      donationDate: donation.donationDate,
+      units: donation.quantity,
+      notes: donation.notes,
+      createdAt: donation.createdAt,
+      certificateIssued: donation.certificateIssued
+    }));
+
+    res.json({
+      success: true,
+      data: transformedDonations
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error in GET /api/admin/donations:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching donations',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

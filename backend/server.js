@@ -6,6 +6,15 @@ require('dotenv').config();
 
 const app = express();
 
+// Import routes
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
+const donorRoutes = require('./routes/donor');
+const campRoutes = require('./routes/camps');
+const donationRoutes = require('./routes/donations');
+const certificateRoutes = require('./routes/certificates');
+const donationVerificationRoutes = require('./routes/donationVerification');
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
@@ -38,19 +47,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/blood_don
   process.exit(1);
 });
 
-// Import routes
-const authRoutes = require('./routes/auth');
-const campRoutes = require('./routes/camps');
-const donorRoutes = require('./routes/donor');
-const adminRoutes = require('./routes/admin');
-const certificateRoutes = require('./routes/certificates');
-
-// Mount routes
+// Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/camps', campRoutes);
-app.use('/api/donor', donorRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/donor', donorRoutes);
+app.use('/api/camps', campRoutes);
+app.use('/api/donations', donationRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/api/verification', donationVerificationRoutes);
 
 // API health check endpoint
 app.get('/api/health', (req, res) => {

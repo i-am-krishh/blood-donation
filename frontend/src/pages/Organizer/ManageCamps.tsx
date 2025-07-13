@@ -108,7 +108,7 @@ const ManageCamps = () => {
     }
   };
 
-  const handleCreateCamp = async (campData: Omit<Camp, '_id'>) => {
+  const handleCreateCamp = async (campData: Partial<Camp>) => {
     try {
       const response = await fetch('/api/camps', {
         method: 'POST',
@@ -332,16 +332,16 @@ const ManageCamps = () => {
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-500">
           <div>
-            <span className="font-medium">Total Camps:</span> {camps.length}
+            <span className="font-medium">Total Camps:</span> {camps?.length || 0}
           </div>
           <div>
-            <span className="font-medium">Pending Approval:</span> {camps.filter(c => c.status === 'pending').length}
+            <span className="font-medium">Pending Approval:</span> {camps?.filter(c => c.status === 'pending')?.length || 0}
           </div>
           <div>
-            <span className="font-medium">Active Camps:</span> {camps.filter(c => c.status === 'approved' || c.status === 'ongoing').length}
+            <span className="font-medium">Active Camps:</span> {camps?.filter(c => c.status === 'approved' || c.status === 'ongoing')?.length || 0}
           </div>
           <div>
-            <span className="font-medium">Completed:</span> {camps.filter(c => c.status === 'completed').length}
+            <span className="font-medium">Completed:</span> {camps?.filter(c => c.status === 'completed')?.length || 0}
           </div>
         </div>
       </div>
@@ -378,7 +378,7 @@ const ManageCamps = () => {
                 </div>
                 <div className="flex items-center text-gray-500">
                   <Users className="w-4 h-4 mr-2" />
-                  <span className="text-sm">{camp.registeredDonors.length} / {camp.capacity} registered</span>
+                  <span className="text-sm">{camp.registeredDonors?.length || 0} / {camp.capacity} registered</span>
                 </div>
               </div>
 
@@ -386,10 +386,10 @@ const ManageCamps = () => {
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <h4 className="font-medium text-gray-700 mb-2">Analytics</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Registration Rate: {camp.analytics.registrationRate.toFixed(1)}%</div>
-                    <div>Donation Rate: {camp.analytics.donationRate.toFixed(1)}%</div>
-                    <div>No Shows: {camp.analytics.noShows}</div>
-                    <div>Rating: {camp.analytics.averageRating.toFixed(1)}/5</div>
+                    <div>Registration Rate: {(camp.analytics.registrationRate || 0).toFixed(1)}%</div>
+                    <div>Donation Rate: {(camp.analytics.donationRate || 0).toFixed(1)}%</div>
+                    <div>No Shows: {camp.analytics.noShows || 0}</div>
+                    <div>Rating: {(camp.analytics.averageRating || 0).toFixed(1)}/5</div>
                   </div>
                 </div>
               )}
@@ -454,11 +454,11 @@ const ManageCamps = () => {
                 </div>
               </div>
 
-              {camp.registeredDonors.length > 0 && (
+              {(camp.registeredDonors?.length || 0) > 0 && (
                 <div className="mt-4 border-t pt-4">
                   <h4 className="font-medium text-gray-700 mb-2">Registered Donors</h4>
                   <div className="space-y-2">
-                    {camp.registeredDonors.map((registration) => (
+                    {camp.registeredDonors?.map((registration) => (
                       <div key={registration.donor._id} className="flex items-center justify-between text-sm">
                         <div>
                           <div className="font-medium">{registration.donor.name}</div>
@@ -495,7 +495,8 @@ const ManageCamps = () => {
         <EditCampModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onSubmit={handleCreateCamp}
+          onUpdate={handleCreateCamp}
+          camp={null}
         />
       )}
 
@@ -506,7 +507,7 @@ const ManageCamps = () => {
             setShowEditModal(false);
             setSelectedCamp(null);
           }}
-          onSubmit={(data) => handleUpdateCamp(selectedCamp._id, data)}
+          onUpdate={(data) => handleUpdateCamp(selectedCamp._id, data)}
           camp={selectedCamp}
         />
       )}

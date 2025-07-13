@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, User, Shield, Droplet, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { useToast } from '../../components/ui/use-toast';
 
 interface UserData {
   _id: string;
@@ -16,6 +17,7 @@ interface UserData {
 }
 
 const AllUsers = () => {
+  const { toast } = useToast();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,10 +43,19 @@ const AllUsers = () => {
       }
 
       const data = await response.json();
-      setUsers(data);
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch users');
+      }
+      
+      setUsers(data.data || []); // Access the transformed users from the correct path
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users. Please try again later.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to load users'
+      });
     } finally {
       setLoading(false);
     }
@@ -70,9 +81,18 @@ const AllUsers = () => {
       setUsers(users.map(user =>
         user._id === userId ? updatedUser : user
       ));
+      toast({
+        title: "Success",
+        description: `User status ${isApproved ? 'approved' : 'suspended'} successfully`
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user status. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to update user status'
+      });
     }
   };
 
@@ -96,9 +116,18 @@ const AllUsers = () => {
       setUsers(users.map(user =>
         user._id === userId ? updatedUser : user
       ));
+      toast({
+        title: "Success",
+        description: `User role updated to ${newRole} successfully`
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user role. Please try again.');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to update user role'
+      });
     }
   };
 
@@ -116,18 +145,25 @@ const AllUsers = () => {
     return <LoadingSpinner />;
   }
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600">{error}</p>
+          <Button onClick={fetchUsers} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
         <p className="text-gray-600">Manage and monitor all users in the system</p>
       </div>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600">{error}</p>
-        </div>
-      )}
 
       <div className="mb-6 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
@@ -161,7 +197,7 @@ const AllUsers = () => {
         </select>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="overflow-x-auto bg-white rounded-lg shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -174,7 +210,7 @@ const AllUsers = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredUsers.map((user) => (
-              <tr key={user._id}>
+              <tr key={user._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center">
                     <div>

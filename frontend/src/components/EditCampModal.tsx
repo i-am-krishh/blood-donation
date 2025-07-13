@@ -8,7 +8,7 @@ interface EditCampModalProps {
   camp: Camp | null;
   isOpen: boolean;
   onClose: () => void;
-  onUpdate: () => void;
+  onUpdate: (data: Partial<Camp>) => Promise<void>;
 }
 
 interface Camp {
@@ -80,7 +80,15 @@ const EditCampModal: React.FC<EditCampModalProps> = ({ camp, isOpen, onClose, on
         title: "Success",
         description: "Camp updated successfully",
       });
-      onUpdate();
+      const updatedData = {
+        ...formData,
+        requirements: requirements.split(',').map(req => req.trim()).filter(req => req),
+        contactInfo: {
+          phone: formData.contactInfo?.phone || '',
+          email: formData.contactInfo?.email || ''
+        }
+      };
+      await onUpdate(updatedData);
       onClose();
     } catch (err) {
       toast({

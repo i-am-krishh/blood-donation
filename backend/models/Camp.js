@@ -36,38 +36,21 @@ const campSchema = new mongoose.Schema({
     required: [true, 'Description is required'],
     trim: true
   },
-  requirements: {
+  contactNo: {
     type: String,
-    required: [true, 'Requirements are required'],
+    required: [true, 'Contact number is required'],
     trim: true
   },
-  contactInfo: {
-    phone: {
-      type: String,
-      required: [true, 'Contact phone is required'],
-      trim: true
-    },
-    email: {
-      type: String,
-      required: [true, 'Contact email is required'],
-      trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
-    }
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    trim: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
   },
-  location: {
-    latitude: {
-      type: Number,
-      required: [true, 'Latitude is required']
-    },
-    longitude: {
-      type: Number,
-      required: [true, 'Longitude is required']
-    },
-    address: {
-      type: String,
-      required: [true, 'Address is required'],
-      trim: true
-    }
+  address: {
+    type: String,
+    required: [true, 'Address is required'],
+    trim: true
   },
   organizer: {
     type: mongoose.Schema.Types.ObjectId,

@@ -14,7 +14,23 @@ const auth = async (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      console.error('JWT Verification Error:', error);
+      return res.status(401).json({
+        success: false,
+        message: 'Token is invalid or expired'
+      });
+    }
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token payload'
+      });
+    }
     
     // Find user by id
     const user = await User.findById(decoded.userId).select('-password');
@@ -26,37 +42,76 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Check if user is approved (except for admins)
+    if (user.role !== 'admin' && !user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending approval'
+      });
+    }
+
     // Attach user to request object
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({
+    console.error('Auth Middleware Error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Token is invalid or expired'
+      message: 'Server error during authentication'
     });
   }
 };
 
 // Middleware to check if user is admin
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+
     next();
-  } else {
-    res.status(403).json({
+  } catch (error) {
+    console.error('Admin Check Error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Access denied. Admin privileges required.'
+      message: 'Server error during authorization check'
     });
   }
 };
 
 // Middleware to check if user is camp organizer
 const isCampOrganizer = (req, res, next) => {
-  if (req.user && (req.user.role === 'camp_organizer' || req.user.role === 'admin')) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    if (req.user.role !== 'camp_organizer' && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Camp organizer privileges required.'
+      });
+    }
+
     next();
-  } else {
-    res.status(403).json({
+  } catch (error) {
+    console.error('Camp Organizer Check Error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Access denied. Camp organizer privileges required.'
+      message: 'Server error during authorization check'
     });
   }
 };

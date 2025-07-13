@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, MapPin, Clock, Users, Search, UserCheck, CheckCircle, XCircle, BarChart } from 'lucide-react';
+import { Edit2, Trash2, Calendar, MapPin, Clock, Users, Search, UserCheck, CheckCircle, XCircle, BarChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaRegCalendarCheck, FaRegCalendarTimes, FaUsersCog } from 'react-icons/fa';
 import { Button } from '../../components/ui/button';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useToast } from '../../components/ui/use-toast';
 import { format } from 'date-fns';
-import CreateCampModal from '../../components/CreateCampModal';
 
 interface Camp {
   _id: string;
@@ -63,7 +62,6 @@ const AllCamps = () => {
   const [camps, setCamps] = useState<Camp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [selectedCamp, setSelectedCamp] = useState<Camp | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -286,13 +284,6 @@ const AllCamps = () => {
         className="flex justify-between items-center mb-6"
       >
         <h1 className="text-3xl font-bold text-gray-900">All Blood Donation Camps</h1>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create Camp
-        </Button>
       </motion.div>
 
       <motion.div
@@ -459,16 +450,6 @@ const AllCamps = () => {
           </motion.div>
         </AnimatePresence>
       </motion.div>
-
-      {showCreateModal && (
-        <CreateCampModal
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false);
-            fetchCamps();
-          }}
-        />
-      )}
 
       {/* Analytics Modal */}
       {showAnalyticsModal && selectedCamp && (

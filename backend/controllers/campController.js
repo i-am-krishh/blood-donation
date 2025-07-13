@@ -355,7 +355,7 @@ exports.getCamp = async (req, res) => {
   }
 };
 
-// Create camp
+// Create a new camp
 exports.createCamp = async (req, res) => {
   try {
     const {
@@ -365,73 +365,36 @@ exports.createCamp = async (req, res) => {
       time,
       capacity,
       description,
-      requirements,
-      contactInfo,
-      location
+      contactNo,
+      email,
+      address
     } = req.body;
 
-    // Validate required fields
-    if (!name || !venue || !date || !time || !capacity) {
-      return res.status(400).json({ message: 'Please provide all required fields' });
-    }
-
-    // Validate capacity
-    if (capacity < 1) {
-      return res.status(400).json({ message: 'Capacity must be at least 1' });
-    }
-
-    // Validate date
-    const campDate = new Date(date);
-    if (campDate < new Date()) {
-      return res.status(400).json({ message: 'Camp date cannot be in the past' });
-    }
-
-    // Validate location coordinates
-    if (!location || !location.latitude || !location.longitude || !location.address) {
-      return res.status(400).json({ message: 'Please provide valid location details' });
-    }
-
-    // Create new camp
     const camp = new Camp({
       name,
       venue,
-      date: campDate,
+      date,
       time,
       capacity,
       description,
-      requirements,
-      contactInfo,
-      location,
-      organizer: req.user._id,
-      status: 'pending',
-      analytics: {
-        registrationRate: 0,
-        donationRate: 0,
-        totalRegistrations: 0,
-        actualDonors: 0
-      }
+      contactNo,
+      email,
+      address,
+      organizer: req.user._id
     });
 
     await camp.save();
 
-    // Send notification to admin
-    const admins = await User.find({ role: 'admin' });
-    const notifications = admins.map(admin => ({
-      recipient: admin._id,
-      type: 'new_camp',
-      message: `New blood donation camp "${name}" requires approval`,
-      relatedCamp: camp._id
-    }));
-
-    await Notification.insertMany(notifications);
-
     res.status(201).json({
-      message: 'Camp created successfully and pending approval',
+      message: 'Camp created successfully',
       camp
     });
   } catch (error) {
     console.error('Error in createCamp:', error);
-    res.status(500).json({ message: 'Error creating camp', error: error.message });
+    res.status(400).json({
+      message: 'Error creating camp',
+      error: error.message
+    });
   }
 };
 

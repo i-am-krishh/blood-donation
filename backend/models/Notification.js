@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const notificationSchema = new mongoose.Schema({
+const NotificationSchema = new mongoose.Schema({
   recipient: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['donation_reminder', 'camp_registration', 'certificate_issued', 'camp_cancelled', 'general'],
+    enum: ['camp_reminder', 'donation_reminder', 'urgent_request', 'certificate_generated', 'camp_cancelled', 'camp_updated'],
     required: true
   },
   title: {
@@ -19,23 +19,45 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  read: {
+  relatedId: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'relatedModel'
+  },
+  relatedModel: {
+    type: String,
+    enum: ['Camp', 'Donation', 'Certificate'],
+    required: function() {
+      return this.relatedId != null;
+    }
+  },
+  isRead: {
     type: Boolean,
     default: false
   },
-  relatedCamp: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Camp'
+  isEmailSent: {
+    type: Boolean,
+    default: false
   },
-  relatedDonation: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Donation'
+  isSMSSent: {
+    type: Boolean,
+    default: false
   },
-  createdAt: {
+  scheduledFor: {
     type: Date,
     default: Date.now
+  },
+  metadata: {
+    type: Map,
+    of: String,
+    default: () => ({})
   }
+}, {
+  timestamps: true
 });
 
-const Notification = mongoose.model('Notification', notificationSchema);
-module.exports = Notification; 
+// Indexes for faster queries
+NotificationSchema.index({ recipient: 1, createdAt: -1 });
+NotificationSchema.index({ type: 1, scheduledFor: 1 });
+NotificationSchema.index({ isRead: 1 });
+
+module.exports = mongoose.model('Notification', NotificationSchema); 
