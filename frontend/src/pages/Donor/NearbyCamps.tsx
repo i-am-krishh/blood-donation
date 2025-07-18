@@ -4,6 +4,7 @@ import { Calendar, MapPin, Clock, Users, Search, Filter, Loader2 } from 'lucide-
 import { Button } from '../../components/ui/button';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { toast } from '../../components/ui/use-toast';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
 interface Camp {
   _id: string;
@@ -16,7 +17,7 @@ interface Camp {
     email: string;
   };
   capacity: number;
-  registeredDonors: Array<{
+  registeredDonors?: Array<{  // Make this optional with ?
     donor: {
       _id: string;
       name: string;
@@ -101,7 +102,7 @@ const NearbyCamps = () => {
 
   const fetchCamps = async () => {
     try {
-      let url = '/api/camps';
+      let url = '/api/camps/public';
       
       // Only use nearby endpoint if we have location
       if (userLocation) {
@@ -151,24 +152,28 @@ const NearbyCamps = () => {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to register');
+        // Enhanced error handling
+        const errorMessage = data.message || 'Failed to register';
+        console.error('Registration failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorMessage,
+          details: data
+        });
+        throw new Error(errorMessage);
       }
 
-      // Show success message
       toast({
         title: "Success",
         description: "Successfully registered for the camp",
         variant: "default",
       });
 
-      // Refresh camps list
       await fetchCamps();
-      
-      // Navigate to registrations page
       navigate('/donor/registrations');
     } catch (err) {
-      console.error('Registration error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to register for camp';
+      console.error('Registration error:', err);
       setError(errorMessage);
       toast({
         title: "Error",
@@ -176,7 +181,7 @@ const NearbyCamps = () => {
         variant: "destructive",
       });
     }
-  };
+};
 
   const filteredCamps = camps.filter(camp => {
     const matchesSearch = camp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -285,7 +290,8 @@ const NearbyCamps = () => {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredCamps.map((camp) => {
-            const registeredCount = camp.registeredDonors.length;
+            // Add null check for registeredDonors
+            const registeredCount = camp.registeredDonors?.length || 0;
             const isFull = registeredCount >= camp.capacity;
             return (
               <div
@@ -306,7 +312,7 @@ const NearbyCamps = () => {
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Calendar className="w-4 h-4 mr-2" />
-                    <span>{new Date(camp.date).toLocaleDateString()}</span>
+                    <span>{new Date(camp.date).toLocaleDateString('en-GB')}</span>
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Clock className="w-4 h-4 mr-2" />
@@ -343,4 +349,12 @@ const NearbyCamps = () => {
   );
 };
 
-export default NearbyCamps;
+const NearbyCampsWithErrorBoundary = () => {
+  return (
+    <ErrorBoundary>
+      <NearbyCamps />
+    </ErrorBoundary>
+  );
+};
+
+export default NearbyCampsWithErrorBoundary;

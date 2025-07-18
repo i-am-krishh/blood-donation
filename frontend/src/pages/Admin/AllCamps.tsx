@@ -161,8 +161,12 @@ const AllCamps = () => {
   // Handle camp status update
   const handleStatusUpdate = async (campId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/camps/${campId}/status`, {
-        method: 'PUT',
+      if (!campId) {
+        throw new Error('Invalid camp ID');
+      }
+
+      const response = await fetch(`/api/admin/camps/${campId}/status`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -179,14 +183,15 @@ const AllCamps = () => {
         title: "Success",
         description: `Camp status updated to ${newStatus}`
       });
-
+      
       // Refresh camps list
       fetchCamps();
     } catch (error) {
+      console.error('Error updating camp status:', error);
       toast({
-        variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to update status'
+        description: error instanceof Error ? error.message : 'Failed to update camp status',
+        status: "error"
       });
     }
   };

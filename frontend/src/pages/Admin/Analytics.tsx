@@ -6,10 +6,12 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/ui/use-toast';
 
+// Update the AnalyticsData interface
 interface AnalyticsData {
   totalDonors: number;
   totalOrganizers: number;
   totalDonations: number;
+  recentDonations: number; // Add this field
   totalCamps: number;
   bloodTypeDistribution: {
     type: string;
@@ -233,6 +235,9 @@ const Analytics = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Total Donations</p>
               <p className="text-2xl font-semibold text-gray-900">{analytics.totalDonations}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {analytics.recentDonations} donations in selected period
+              </p>
             </div>
             <Droplet className="w-8 h-8 text-blue-500" />
           </div>
@@ -306,7 +311,7 @@ const Analytics = () => {
           whileHover={{ scale: 1.01 }}
           className="bg-white rounded-lg shadow p-6"
         >
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Monthly Trend</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Donation Trends</h2>
           <div className="w-full h-[300px]">
             <ResponsiveContainer>
               <AreaChart
@@ -322,7 +327,10 @@ const Analytics = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip 
+                  formatter={(value) => [`${value} donations`, 'Total']}
+                  labelFormatter={(label) => `Month: ${label}`}
+                />
                 <Legend />
                 <Area 
                   type="monotone" 
@@ -330,7 +338,7 @@ const Analytics = () => {
                   stroke="#ef4444" 
                   fillOpacity={1} 
                   fill="url(#colorDonations)" 
-                  name="Donations"
+                  name="Total Donations"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -401,4 +409,4 @@ const Analytics = () => {
   );
 };
 
-export default Analytics; 
+export default Analytics;

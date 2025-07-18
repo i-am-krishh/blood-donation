@@ -62,11 +62,6 @@ const campSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'ongoing', 'completed', 'cancelled'],
     default: 'pending'
   },
-  registeredDonors: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: []
-  }],
   actualDonors: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -94,33 +89,39 @@ const campSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Pre-save middleware to update analytics
-campSchema.pre('save', function(next) {
-  if (this.isModified('registeredDonors') || this.isModified('actualDonors')) {
+// Update pre-save middleware to use DonorRegistration for analytics
+campSchema.pre('save', async function(next) {
+  if (this.isModified('actualDonors')) {
+    const DonorRegistration = mongoose.model('DonorRegistration');
+    const totalRegistrations = await DonorRegistration.countDocuments({ campId: this._id });
+    
     this.analytics = {
-      totalRegistrations: this.registeredDonors.length,
+      totalRegistrations,
       actualDonors: this.actualDonors.length,
-      registrationRate: (this.registeredDonors.length / this.capacity) * 100,
-      donationRate: this.registeredDonors.length > 0 ? 
-        (this.actualDonors.length / this.registeredDonors.length) * 100 : 0
+      registrationRate: (totalRegistrations / this.capacity) * 100,
+      donationRate: totalRegistrations > 0 ? 
+        (this.actualDonors.length / totalRegistrations) * 100 : 0
     };
   }
   next();
 });
 
-// Virtual for checking if camp is full
-campSchema.virtual('isFull').get(function() {
-  return this.registeredDonors.length >= this.capacity;
+// Update virtual for checking if camp is full
+campSchema.virtual('isFull').get(async function() {
+  const DonorRegistration = mongoose.model('DonorRegistration');
+  const totalRegistrations = await DonorRegistration.countDocuments({ campId: this._id });
+  return totalRegistrations >= this.capacity;
 });
 
-// Method to check if a user is registered
-campSchema.methods.isUserRegistered = function(userId) {
-  return this.registeredDonors.includes(userId);
-};
-
-// Method to check if a user has donated
-campSchema.methods.hasUserDonated = function(userId) {
-  return this.actualDonors.includes(userId);
+// Update method to check if a user is registered
+campSchema.methods.isUserRegistered = async function(userId) {
+  const DonorRegistration = mongoose.model('DonorRegistration');
+  const registration = await DonorRegistration.findOne({
+    campId: this._id,
+    donorId: userId,
+    status: { $in: ['registered', 'donated'] }
+  });
+  return !!registration;
 };
 
 const Camp = mongoose.model('Camp', campSchema);

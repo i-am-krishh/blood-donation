@@ -19,76 +19,41 @@ interface Camp {
   time: string;
   capacity: number;
   description: string;
-  requirements: string[];
-  contactInfo: {
-    phone: string;
-    email: string;
-  };
+  contactNo: string;
+  email: string;
+  address: string;
 }
 
 const EditCampModal: React.FC<EditCampModalProps> = ({ camp, isOpen, onClose, onUpdate }) => {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Partial<Camp>>({});
   const [loading, setLoading] = useState(false);
-  const [requirements, setRequirements] = useState<string>('');
 
   useEffect(() => {
     if (camp) {
       setFormData({
         name: camp.name,
         venue: camp.venue,
-        date: camp.date.split('T')[0], // Format date for input
+        date: camp.date.split('T')[0],
         time: camp.time,
         capacity: camp.capacity,
         description: camp.description,
-        requirements: camp.requirements,
-        contactInfo: {
-          phone: camp.contactInfo?.phone || '',
-          email: camp.contactInfo?.email || ''
-        }
+        contactNo: camp.contactNo,
+        email: camp.email,
+        address: camp.address
       });
-      setRequirements(camp.requirements?.join(', ') || '');
     }
   }, [camp]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!camp) return;
-
     try {
       setLoading(true);
-      const response = await fetch(`/api/admin/camps/${camp._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          requirements: requirements.split(',').map(req => req.trim()).filter(req => req),
-          contactPhone: formData.contactInfo?.phone,
-          contactEmail: formData.contactInfo?.email
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update camp');
-      }
-
+      await onUpdate(formData);
       toast({
         title: "Success",
-        description: "Camp updated successfully",
+        description: camp ? "Camp updated successfully" : "Camp created successfully",
       });
-      const updatedData = {
-        ...formData,
-        requirements: requirements.split(',').map(req => req.trim()).filter(req => req),
-        contactInfo: {
-          phone: formData.contactInfo?.phone || '',
-          email: formData.contactInfo?.email || ''
-        }
-      };
-      await onUpdate(updatedData);
       onClose();
     } catch (err) {
       toast({
@@ -122,67 +87,48 @@ const EditCampModal: React.FC<EditCampModalProps> = ({ camp, isOpen, onClose, on
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
-              <motion.h2
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                className="text-2xl font-semibold text-gray-900"
-              >
-                Edit Camp
-              </motion.h2>
-              <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
+              <h2 className="text-2xl font-semibold text-gray-900">
+                {camp ? 'Edit Camp' : 'Create New Camp'}
+              </h2>
+              <button
                 onClick={onClose}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <X size={24} />
-              </motion.button>
+              </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-              >
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                 <input
                   type="text"
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Venue</label>
                 <input
                   type="text"
                   value={formData.venue || ''}
                   onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="grid grid-cols-2 gap-4"
-              >
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
                   <input
                     type="date"
                     value={formData.date || ''}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                     required
                   />
                 </div>
@@ -192,139 +138,92 @@ const EditCampModal: React.FC<EditCampModalProps> = ({ camp, isOpen, onClose, on
                     type="time"
                     value={formData.time || ''}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                    className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                     required
                   />
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Capacity</label>
                 <input
                   type="number"
                   value={formData.capacity || ''}
                   onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   min="1"
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   rows={3}
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.6 }}
-              >
-                <label className="block text-sm font-medium text-gray-700 mb-2">Requirements (comma-separated)</label>
-                <input
-                  type="text"
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
-                  placeholder="Age 18+, Good health, etc."
-                />
-              </motion.div>
-
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.7 }}
-              >
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Phone</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Number</label>
                 <input
                   type="tel"
-                  value={formData.contactInfo?.phone || ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    contactInfo: {
-                      phone: e.target.value,
-                      email: formData.contactInfo?.email || ''
-                    }
-                  })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  value={formData.contactNo || ''}
+                  onChange={(e) => setFormData({ ...formData, contactNo: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.8 }}
-              >
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Email</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                 <input
                   type="email"
-                  value={formData.contactInfo?.email || ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    contactInfo: {
-                      email: e.target.value,
-                      phone: formData.contactInfo?.phone || ''
-                    }
-                  })}
-                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                   required
                 />
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.9 }}
-                className="flex justify-end space-x-3 pt-6"
-              >
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onClose}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </Button>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    {loading ? (
-                      <span className="flex items-center">
-                        <motion.span
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="mr-2"
-                        >
-                          ⭮
-                        </motion.span>
-                        Updating...
-                      </span>
-                    ) : (
-                      'Update Camp'
-                    )}
-                  </Button>
-                </motion.div>
-              </motion.div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                <textarea
+                  value={formData.address || ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  rows={2}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {loading ? (
+                    <span className="flex items-center">
+                      <span className="animate-spin mr-2">⭮</span>
+                      {camp ? 'Updating...' : 'Creating...'}
+                    </span>
+                  ) : (
+                    camp ? 'Update Camp' : 'Create Camp'
+                  )}
+                </Button>
+              </div>
             </form>
           </motion.div>
         </motion.div>
@@ -333,4 +232,4 @@ const EditCampModal: React.FC<EditCampModalProps> = ({ camp, isOpen, onClose, on
   );
 };
 
-export default EditCampModal; 
+export default EditCampModal;

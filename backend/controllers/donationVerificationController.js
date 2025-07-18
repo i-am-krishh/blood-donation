@@ -3,6 +3,7 @@ const Donation = require('../models/Donation');
 const Camp = require('../models/Camp');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const DonorRegistration = require('../models/DonorRegistration');
 
 // Start donation verification process
 exports.startVerification = async (req, res) => {
@@ -16,18 +17,39 @@ exports.startVerification = async (req, res) => {
       return res.status(404).json({ message: 'Camp not found' });
     }
 
-    const isDonorRegistered = camp.registeredDonors.includes(donorId);
-    if (!isDonorRegistered) {
+    // Find and verify donor registration with full donor details
+    const registration = await DonorRegistration.findOne({
+      donorId,
+      campId,
+      status: 'registered'
+    }).populate('donorId', 'name email bloodType');
+
+    if (!registration) {
+      return res.status(400).json({ message: 'Donor is not registered for this camp or has already donated' });
+    }
+
+    if (!registration) {
       return res.status(400).json({ message: 'Donor is not registered for this camp' });
     }
 
-    // Create donation record first
+    if (!registration.donorId || !registration.donorId.bloodType) {
+      return res.status(400).json({ message: 'Donor information or blood type is missing' });
+    }
+
+    // Get donor's blood type from the populated User document
+    const donorBloodType = registration.donorId.bloodType;
+
+    // Create donation record
     const donation = new Donation({
       donor: donorId,
       camp: campId,
       donationDate: new Date(),
-      status: 'pending'
+      status: 'pending',
+      bloodType: donorBloodType,
+      quantity: 1 // Default unit of blood
     });
+
+    console.log('Creating donation with data:', donation);
     await donation.save();
 
     // Create verification record
@@ -40,13 +62,19 @@ exports.startVerification = async (req, res) => {
     });
     await verification.save();
 
+    // Update registration status
+    registration.status = 'donated';
+    registration.donationDate = new Date();
+    registration.nextEligibleDate = new Date(Date.now() + (90 * 24 * 60 * 60 * 1000)); // 90 days
+    await registration.save();
+
     res.status(201).json({
       message: 'Donation verification process started',
       verificationId: verification._id
     });
   } catch (error) {
     console.error('Error in startVerification:', error);
-    res.status(500).json({ message: 'Error starting verification process' });
+    res.status(500).json({ message: error.message || 'Error starting verification process' });
   }
 };
 
@@ -259,4 +287,4 @@ exports.getVerification = async (req, res) => {
     console.error('Error in getVerification:', error);
     res.status(500).json({ message: 'Error fetching verification details' });
   }
-}; 
+};

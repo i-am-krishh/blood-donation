@@ -99,6 +99,13 @@ router.get(
   campController.generateAttendanceReport
 );
 
+router.get(
+  '/:id/certificates-report',
+  auth,
+  checkRole(['camp_organizer', 'admin']),
+  campController.generateCertificatesReport
+);
+
 // Donor routes
 router.post(
   '/:id/register',

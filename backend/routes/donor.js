@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth } = require('../middleware/auth');
 const Camp = require('../models/Camp');
 const Donation = require('../models/Donation');
+const DonorRegistration = require('../models/DonorRegistration');
 
 // @route   GET /api/donor/registrations
 // @desc    Get donor's camp registrations
@@ -67,6 +68,7 @@ router.get('/nearby-camps', auth, async (req, res) => {
 // @route   POST /api/donor/register-camp/:campId
 // @desc    Register for a blood donation camp
 // @access  Private (Donor only)
+// Update the registration route
 router.post('/register-camp/:campId', auth, async (req, res) => {
   try {
     const camp = await Camp.findById(req.params.campId);
@@ -79,18 +81,20 @@ router.post('/register-camp/:campId', auth, async (req, res) => {
       return res.status(400).json({ message: 'Cannot register for this camp' });
     }
 
-    // Check if already registered
-    const isAlreadyRegistered = camp.registeredDonors.some(
-      registration => registration.donor.toString() === req.user.id
-    );
-
-    if (isAlreadyRegistered) {
-      return res.status(400).json({ message: 'Already registered for this camp' });
+    // Check camp capacity
+    const registrationCount = await DonorRegistration.countDocuments({ campId: camp._id });
+    if (registrationCount >= camp.capacity) {
+      return res.status(400).json({ message: 'Camp is at full capacity' });
     }
 
-    // Check camp capacity
-    if (camp.registeredDonors.length >= camp.capacity) {
-      return res.status(400).json({ message: 'Camp is at full capacity' });
+    // Check if already registered
+    const existingRegistration = await DonorRegistration.findOne({
+      donorId: req.user.id,
+      campId: camp._id
+    });
+
+    if (existingRegistration) {
+      return res.status(400).json({ message: 'Already registered for this camp' });
     }
 
     // Check if camp date has passed
@@ -98,19 +102,23 @@ router.post('/register-camp/:campId', auth, async (req, res) => {
       return res.status(400).json({ message: 'Cannot register for past camps' });
     }
 
-    // Add new registration
-    camp.registeredDonors.push({
-      donor: req.user.id,
-      registrationDate: new Date(),
-      status: 'pending',
-      donationStatus: 'not_donated'
+    // Create new registration
+    const registration = new DonorRegistration({
+      donorId: req.user.id,
+      campId: camp._id,
+      status: 'registered'
     });
 
+    await registration.save();
+
+    // Update camp analytics
+    camp.analytics.totalRegistrations = await DonorRegistration.countDocuments({ campId: camp._id });
+    camp.analytics.registrationRate = (camp.analytics.totalRegistrations / camp.capacity) * 100;
     await camp.save();
 
     res.json({ 
       message: 'Successfully registered for camp',
-      registration: camp.registeredDonors[camp.registeredDonors.length - 1]
+      registration: registration
     });
   } catch (err) {
     console.error('Error in camp registration:', err);

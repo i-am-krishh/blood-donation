@@ -12,26 +12,8 @@ interface Camp {
   date: string;
   time: string;
   capacity: number;
-  registeredDonors: Array<{
-    donor: {
-      _id: string;
-      name: string;
-      email: string;
-      bloodType: string;
-      phoneNumber: string;
-    };
-    status: string;
-    donationStatus: string;
-    registrationDate: string;
-    feedback?: {
-      rating: number;
-      comment: string;
-      submittedAt: string;
-    };
-  }>;
   status: 'pending' | 'approved' | 'cancelled' | 'completed' | 'ongoing';
   description: string;
-  requirements: string[];
   contactInfo: {
     phone: string;
     email: string;
@@ -51,6 +33,18 @@ interface Camp {
   };
 }
 
+interface DonorRegistration {
+  _id: string;
+  donorId: {
+    _id: string;
+    name: string;
+    bloodType: string;
+    phoneNumber: string;
+  };
+  status: 'registered' | 'donated' | 'cancelled';
+  registrationDate: string;
+}
+
 const ManageCamps = () => {
   const { toast } = useToast();
   const [camps, setCamps] = useState<Camp[]>([]);
@@ -68,6 +62,31 @@ const ManageCamps = () => {
     sendTo: 'all'
   });
 
+  // Move these hooks inside the component
+  // Replace the campRegistrations state with:
+  const [campRegistrations, setCampRegistrations] = useState<Map<string, DonorRegistration[]>>(new Map());
+
+  // Update the fetchCampRegistrations function
+  const fetchCampRegistrations = async (campId: string) => {
+    try {
+      const response = await fetch(`/api/camps/${campId}/registrations`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch registrations');
+      const data = await response.json();
+      setCampRegistrations(prev => new Map(prev).set(campId, data.registrations));
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load registrations",
+        variant: "destructive"
+      });
+    }
+  };
+
   useEffect(() => {
     fetchCamps();
   }, []);
@@ -77,7 +96,7 @@ const ManageCamps = () => {
       setIsLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         throw new Error('Authentication token not found');
       }
@@ -96,15 +115,16 @@ const ManageCamps = () => {
       const data = await response.json();
       setCamps(data);
     } catch (err) {
+      console.error('Error fetching camps:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load camps';
       setError(errorMessage);
       toast({
-        variant: "destructive",
         title: "Error",
-        description: errorMessage
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Make sure this runs even if there's an error
     }
   };
 
@@ -171,18 +191,25 @@ const ManageCamps = () => {
       const response = await fetch(`/api/camps/${campId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) throw new Error('Failed to delete camp');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete camp');
+      }
 
       toast({
         title: "Success",
-        description: "Camp deleted successfully"
+        description: data.message || "Camp deleted successfully"
       });
+
       fetchCamps();
     } catch (error) {
+      console.error('Error deleting camp:', error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -202,18 +229,20 @@ const ManageCamps = () => {
         body: JSON.stringify({ status, donationStatus })
       });
 
-      if (!response.ok) throw new Error('Failed to update donor status');
+      if (!response.ok) throw new Error('Failed to update status');
 
       toast({
         title: "Success",
-        description: "Donor status updated successfully"
+        description: "Donor status updated successfully",
       });
-      fetchCamps();
+
+      // Refresh camp data
+      await fetchCamps();
     } catch (error) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to update donor status'
+        description: "Failed to update donor status",
+        variant: "destructive"
       });
     }
   };
@@ -250,30 +279,23 @@ const ManageCamps = () => {
     }
   };
 
-  const handleDownloadReport = async (campId: string, reportType: 'attendance' | 'certificates') => {
+  const handleDownloadReport = async (campId: string, type: 'attendance' | 'certificates') => {
     try {
-      const response = await fetch(`/api/camps/${campId}/${reportType}-report`, {
+      const endpoint = type === 'attendance' ? 'attendance-report' : 'attendance-report';
+      const response = await fetch(`/api/camps/${campId}/${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
 
-      if (!response.ok) throw new Error(`Failed to download ${reportType} report`);
+      if (!response.ok) throw new Error(`Failed to download ${type} report`);
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${reportType}_report_${campId}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Handle the report data...
     } catch (error) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : `Failed to download ${reportType} report`
+        description: `Failed to download ${type} report`,
+        variant: "destructive"
       });
     }
   };
@@ -281,7 +303,7 @@ const ManageCamps = () => {
   const filteredCamps = camps.filter(camp => {
     const matchesStatus = statusFilter === 'all' || camp.status === statusFilter;
     const matchesSearch = camp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         camp.venue.toLowerCase().includes(searchTerm.toLowerCase());
+      camp.venue.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
@@ -315,7 +337,7 @@ const ManageCamps = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
@@ -352,13 +374,12 @@ const ManageCamps = () => {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">{camp.name}</h3>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  camp.status === 'approved' ? 'bg-green-100 text-green-800' :
-                  camp.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                  camp.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                  camp.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${camp.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    camp.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      camp.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                        camp.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                  }`}>
                   {camp.status.charAt(0).toUpperCase() + camp.status.slice(1)}
                 </span>
               </div>
@@ -383,13 +404,18 @@ const ManageCamps = () => {
               </div>
 
               {camp.analytics && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-2">Analytics</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Registration Rate: {(camp.analytics.registrationRate || 0).toFixed(1)}%</div>
-                    <div>Donation Rate: {(camp.analytics.donationRate || 0).toFixed(1)}%</div>
-                    <div>No Shows: {camp.analytics.noShows || 0}</div>
-                    <div>Rating: {(camp.analytics.averageRating || 0).toFixed(1)}/5</div>
+                // In the camp card JSX, remove the registered donors section and keep only:
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold mb-2">Analytics</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p>Registration Rate:</p>
+                      <p>{camp.analytics.registrationRate.toFixed(1)}%</p>
+                    </div>
+                    <div>
+                      <p>Donation Rate:</p>
+                      <p>{camp.analytics.donationRate.toFixed(1)}%</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -408,7 +434,7 @@ const ManageCamps = () => {
                     <Edit2 className="w-4 h-4 mr-1" />
                     Edit
                   </Button>
-                  
+
                   <Button
                     variant="destructive"
                     size="sm"
@@ -442,7 +468,7 @@ const ManageCamps = () => {
                   >
                     Attendance Report
                   </Button>
-                  
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -454,23 +480,23 @@ const ManageCamps = () => {
                 </div>
               </div>
 
-              {(camp.registeredDonors?.length || 0) > 0 && (
+              {/* {(camp.registeredDonors?.length || 0) > 0 && (
                 <div className="mt-4 border-t pt-4">
                   <h4 className="font-medium text-gray-700 mb-2">Registered Donors</h4>
                   <div className="space-y-2">
                     {camp.registeredDonors?.map((registration) => (
-                      <div key={registration.donor._id} className="flex items-center justify-between text-sm">
+                      <div key={registration.donor?._id || 'unknown'} className="flex items-center justify-between text-sm">
                         <div>
-                          <div className="font-medium">{registration.donor.name}</div>
+                          <div className="font-medium">{registration.donor?.name || 'Unknown Donor'}</div>
                           <div className="text-gray-500">
-                            {registration.donor.bloodType} • {registration.donor.phoneNumber}
+                            {registration.donor?.bloodType || 'N/A'} • {registration.donor?.phoneNumber || 'N/A'}
                           </div>
                         </div>
                         <select
-                          value={registration.donationStatus}
+                          value={registration.donationStatus || 'not_donated'}
                           onChange={(e) => handleUpdateDonorStatus(
                             camp._id,
-                            registration.donor._id,
+                            registration.donor?._id || '',
                             e.target.value === 'donated' ? 'attended' : registration.status,
                             e.target.value
                           )}
@@ -485,7 +511,7 @@ const ManageCamps = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
         ))}
@@ -516,7 +542,7 @@ const ManageCamps = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold mb-4">Send Notification</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Type</label>

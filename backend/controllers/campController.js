@@ -2,6 +2,7 @@ const Camp = require('../models/Camp');
 const User = require('../models/User');
 const Notification = require('../models/Notification'); // Added Notification model
 const { validateCoordinates } = require('../utils/validation');
+const DonorRegistration = require('../models/DonorRegistration');
 
 // Admin: Get all camps with advanced filtering
 exports.getAllCamps = async (req, res) => {
@@ -280,11 +281,25 @@ exports.submitFeedback = async (req, res) => {
 // Get camps for organizer
 exports.getOrganizerCamps = async (req, res) => {
   try {
+    // First get the camps
     const camps = await Camp.find({ organizer: req.user._id })
-      .populate('registeredDonors.donor', 'name email')
       .sort({ date: 1 });
-    res.json(camps);
+
+    // Then for each camp, get the registrations
+    const campsWithRegistrations = await Promise.all(camps.map(async (camp) => {
+      const registrations = await DonorRegistration.find({ campId: camp._id })
+        .populate('donorId', 'name email')
+        .lean();
+
+      return {
+        ...camp.toObject(),
+        registrations
+      };
+    }));
+
+    res.json(campsWithRegistrations);
   } catch (error) {
+    console.error('Error in getOrganizerCamps:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -490,23 +505,30 @@ exports.deleteCamp = async (req, res) => {
 };
 
 // Get registered donors for a camp
+// Add this function to campController.js
 exports.getCampDonors = async (req, res) => {
   try {
-    const camp = await Camp.findById(req.params.id)
-      .populate('registeredDonors.donor', 'name email');
-
+    const campId = req.params.id;
+    
+    // Verify camp exists and user is authorized
+    const camp = await Camp.findById(campId);
     if (!camp) {
       return res.status(404).json({ message: 'Camp not found' });
     }
 
-    // Check if user is the organizer
     if (camp.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to view donors' });
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    res.json(camp.registeredDonors);
+    // Fetch registrations with donor details
+    const registrations = await DonorRegistration.find({ campId })
+      .populate('donorId', 'name email phoneNumber bloodType')
+      .sort({ registrationDate: -1 });
+
+    res.json(registrations);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error in getCampDonors:', error);
+    res.status(500).json({ message: 'Error fetching donors' });
   }
 };
 
@@ -602,4 +624,50 @@ exports.cancelRegistration = async (req, res) => {
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
-}; 
+};
+
+// Generate certificates report
+exports.generateCertificatesReport = async (req, res) => {
+  try {
+    const camp = await Camp.findById(req.params.id)
+      .populate('registeredDonors.donor', 'name email bloodType')
+      .exec();
+
+    if (!camp) {
+      return res.status(404).json({ message: 'Camp not found' });
+    }
+
+    // Check authorization
+    if (req.user.role !== 'admin' && camp.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to generate certificates report' });
+    }
+
+    // Filter donors who have completed their donation
+    const completedDonors = camp.registeredDonors.filter(reg => reg.status === 'completed');
+
+    // Generate report data
+    const reportData = completedDonors.map(reg => ({
+      donorName: reg.donor.name,
+      donorEmail: reg.donor.email,
+      bloodType: reg.donor.bloodType,
+      donationDate: camp.date,
+      campName: camp.name,
+      campVenue: camp.venue
+    }));
+
+    res.json({
+      campDetails: {
+        name: camp.name,
+        date: camp.date,
+        venue: camp.venue
+      },
+      certificates: reportData
+    });
+  } catch (error) {
+    console.error('Error generating certificates report:', error);
+    res.status(500).json({ 
+      message: 'Error generating certificates report',
+      error: error.message
+    });
+  }
+};

@@ -22,6 +22,19 @@ interface Camp {
   capacity: number;
 }
 
+interface DonorRegistration {
+  id: string;
+  donorId: {
+    id: string;
+    name: string;
+    email: string;
+    phoneNumber: string;
+    bloodType: string;
+  };
+  registrationDate: string;
+  status: 'registered' | 'donated' | 'cancelled';
+}
+
 const RegisteredUsers = () => {
   const [camps, setCamps] = useState<Camp[]>([]);
   const [selectedCamp, setSelectedCamp] = useState<string>('');
@@ -84,21 +97,25 @@ const RegisteredUsers = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-
-      if (!response.ok) throw new Error('Failed to fetch registered users');
-
-      const data = await response.json();
-      // Transform the data to match the User interface
-      const formattedUsers = data.registrations.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        bloodType: user.bloodType,
-        registrationDate: user.registrationDate,
-        status: user.status || 'pending'
-      }));
+  
+      if (!response.ok) throw new Error('Failed to fetch registrations');
       
+      const registrations: DonorRegistration[] = await response.json();
+      const formattedUsers = registrations.map(reg => {
+        if (!reg.donorId.id) {
+          console.error('Missing ID for registration:', reg);
+        }
+        return {
+          id: reg.donorId.id,
+          name: reg.donorId.name,
+          email: reg.donorId.email,
+          phoneNumber: reg.donorId.phoneNumber,
+          bloodType: reg.donorId.bloodType,
+          registrationDate: new Date(reg.registrationDate).toLocaleDateString(),
+          status: reg.status
+        };
+      });
+  
       setUsers(formattedUsers);
       setIsLoading(false);
     } catch (err) {
@@ -107,37 +124,15 @@ const RegisteredUsers = () => {
     }
   };
 
-  const handleStatusChange = async (userId: string, newStatus: 'confirmed' | 'cancelled') => {
-    try {
-      const response = await fetch(`/api/camps/${selectedCamp}/registrations/${userId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to update status');
-      }
-  
-      // Refresh the users list after status update
-      await fetchRegisteredUsers(selectedCamp);
-    } catch (err) {
-      setError('Failed to update status. Please try again later.');
-    }
-  };
-
+  // Update the users list rendering
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phoneNumber.includes(searchTerm);
-    
+      
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     const matchesBloodType = bloodTypeFilter === 'all' || user.bloodType === bloodTypeFilter;
-
+  
     return matchesSearch && matchesStatus && matchesBloodType;
   });
 
@@ -168,7 +163,7 @@ const RegisteredUsers = () => {
           >
             {camps.map((camp) => (
               <option key={camp.id} value={camp.id}>
-                {camp.name} - {new Date(camp.date).toLocaleDateString()}
+                {camp.name} - {new Date(camp.date).toLocaleDateString('en-GB')}
               </option>
             ))}
           </select>
@@ -178,7 +173,7 @@ const RegisteredUsers = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="flex items-center text-gray-600">
               <Calendar className="w-4 h-4 mr-2" />
-              <span>{new Date(selectedCampData.date).toLocaleDateString()}</span>
+              <span>{new Date(selectedCampData.date).toLocaleDateString('en-GB')}</span>
             </div>
             <div className="flex items-center text-gray-600">
               <MapPin className="w-4 h-4 mr-2" />
@@ -307,7 +302,7 @@ const RegisteredUsers = () => {
                   Blood Type: {user.bloodType}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Registered: {new Date(user.registrationDate).toLocaleDateString()}
+                  Registered: {new Date(user.registrationDate).toLocaleDateString('en-GB')}
                 </div>
               </div>
 
@@ -337,3 +332,16 @@ const RegisteredUsers = () => {
 };
 
 export default RegisteredUsers;
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'registered':
+      return 'bg-blue-100 text-blue-800';
+    case 'donated':
+      return 'bg-green-100 text-green-800';
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};

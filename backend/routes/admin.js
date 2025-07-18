@@ -284,41 +284,52 @@ router.get('/analytics', [auth, isAdmin], async (req, res) => {
     const [
       totalDonors,
       totalOrganizers,
-      donations,
+      allDonations,
       camps,
       users
     ] = await Promise.all([
       User.countDocuments({ role: 'donor' }),
       User.countDocuments({ role: 'camp_organizer' }),
-      Donation.find({ 
-        donationDate: { $gte: startDate },
-        status: 'completed'
-      })
-      .populate({
-        path: 'donor',
-        select: 'name bloodType'
-      })
-      .populate({
-        path: 'camp',
-        select: 'name'
-      })
-      .sort({ donationDate: -1 })
-      .lean(),
-      Camp.find({ 
-        date: { $gte: startDate }
-      })
-      .populate({
-        path: 'organizer',
-        select: 'name'
-      })
-      .sort({ date: -1 })
-      .lean(),
-      User.find({ 
-        role: 'donor',
-        isApproved: true 
-      }, 'bloodType')
-      .lean()
+      Donation.find()
+        .populate({
+          path: 'donor',
+          select: 'name bloodType'
+        })
+        .populate({
+          path: 'camp',
+          select: 'name'
+        })
+        .sort({ donationDate: -1 })
+        .lean(),
+      Camp.find({ date: { $gte: startDate } })
+        .populate({
+          path: 'organizer',
+          select: 'name'
+        })
+        .sort({ date: -1 })
+        .lean(),
+      User.find({ role: 'donor', isApproved: true }, 'bloodType').lean()
     ]);
+
+    // Calculate monthly donations from all donations
+    const monthlyDonations = [];
+    const months = timeRange === 'year' ? 12 : timeRange === 'month' ? 1 : 0;
+    for (let i = months; i >= 0; i--) {
+      const month = new Date();
+      month.setMonth(now.getMonth() - i);
+      const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+      const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+      
+      const count = allDonations.filter(d => {
+        const donationDate = new Date(d.donationDate);
+        return donationDate >= monthStart && donationDate <= monthEnd;
+      }).length;
+
+      monthlyDonations.push({ 
+        month: month.toLocaleString('default', { month: 'short' }), 
+        donations: count 
+      });
+    }
 
     // Calculate blood type distribution
     const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -376,7 +387,7 @@ router.get('/analytics', [auth, isAdmin], async (req, res) => {
     res.json({
       totalDonors,
       totalOrganizers,
-      totalDonations: donations.length,
+      totalDonations: allDonations.length, // Total number of donations
       totalCamps: camps.length,
       bloodTypeDistribution,
       monthlyDonations,
@@ -495,4 +506,4 @@ router.put('/camps/:id', [
   }
 });
 
-module.exports = router; 
+module.exports = router;
