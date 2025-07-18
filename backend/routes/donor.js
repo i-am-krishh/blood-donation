@@ -10,22 +10,27 @@ const DonorRegistration = require('../models/DonorRegistration');
 // @access  Private (Donor only)
 router.get('/registrations', auth, async (req, res) => {
   try {
-    const camps = await Camp.find({
-      'registeredDonors.donor': req.user.id
-    }).populate('organizer', 'name');
+    const registrations = await DonorRegistration.find({ donorId: req.user.id })
+      .populate({
+        path: 'campId',
+        populate: { path: 'organizer', select: 'name' }
+      })
+      .sort({ registrationDate: -1 });
 
-    const registrations = camps.map(camp => ({
-      id: camp._id,
-      campId: camp._id,
-      campName: camp.name,
-      venue: camp.venue,
-      date: camp.date,
-      time: camp.time,
-      organizer: camp.organizer.name,
-      status: camp.date > new Date() ? 'upcoming' : 'completed'
+    const formattedRegistrations = registrations.map(reg => ({
+      id: reg._id,
+      campId: reg.campId._id,
+      campName: reg.campId.name,
+      venue: reg.campId.venue,
+      date: reg.campId.date,
+      time: reg.campId.time,
+      organizer: reg.campId.organizer.name,
+      status: reg.status === 'donated' ? 'completed' : 
+              reg.status === 'cancelled' ? 'cancelled' : 
+              new Date(reg.campId.date) > new Date() ? 'upcoming' : 'completed'
     }));
 
-    res.json({ registrations });
+    res.json({ registrations: formattedRegistrations });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

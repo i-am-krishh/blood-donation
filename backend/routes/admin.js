@@ -346,7 +346,7 @@ router.get('/analytics', [auth, isAdmin], async (req, res) => {
     }));
 
     // Get recent activity
-    const recentDonations = donations.slice(0, 5).map(d => ({
+    const recentDonations = allDonations.slice(0, 5).map(d => ({
       id: d._id.toString(),
       type: 'donation',
       description: `${d.donor?.name || 'Anonymous'} donated at ${d.camp?.name || 'Unknown Camp'}`,

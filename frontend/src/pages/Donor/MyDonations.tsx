@@ -3,15 +3,19 @@ import { Calendar, MapPin, Award, Download, Clock } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 
 interface Donation {
-  id: string;
-  campName: string;
-  venue: string;
+  _id: string;
   date: string;
-  time: string;
+  camp: {
+    name: string;
+    location: string;
+  };
   bloodType: string;
   units: number;
-  certificateUrl?: string;
-  status: 'verified' | 'pending' | 'rejected';
+  status: string;
+  certificate?: {
+    _id: string;
+    url: string;
+  };
 }
 
 const MyDonations = () => {
@@ -25,7 +29,7 @@ const MyDonations = () => {
 
   const fetchDonations = async () => {
     try {
-      const response = await fetch('/api/donor/donations', {
+      const response = await fetch('/api/donations/my-donations', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -36,7 +40,7 @@ const MyDonations = () => {
       }
 
       const data = await response.json();
-      setDonations(data.donations);
+      setDonations(data);
       setIsLoading(false);
     } catch (err) {
       setError('Failed to load donations. Please try again later.');
@@ -54,11 +58,11 @@ const MyDonations = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'verified':
+      case 'completed':
         return 'bg-green-100 text-green-800';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'rejected':
+      case 'cancelled':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -97,12 +101,12 @@ const MyDonations = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {donations.map((donation) => (
             <div
-              key={donation.id}
+              key={donation._id}
               className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
-                  {donation.campName}
+                  {donation.camp.name}
                 </h3>
                 <span
                   className={`px-2 py-1 rounded text-sm ${getStatusColor(donation.status)}`}
@@ -114,15 +118,11 @@ const MyDonations = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex items-center text-gray-600">
                   <MapPin className="w-4 h-4 mr-2" />
-                  <span>{donation.venue}</span>
+                  <span>{donation.camp.location}</span>
                 </div>
                 <div className="flex items-center text-gray-600">
                   <Calendar className="w-4 h-4 mr-2" />
                   <span>{new Date(donation.date).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center text-gray-600">
-                  <Clock className="w-4 h-4 mr-2" />
-                  <span>{donation.time}</span>
                 </div>
                 <div className="flex items-center text-gray-600">
                   <Award className="w-4 h-4 mr-2" />
@@ -133,9 +133,9 @@ const MyDonations = () => {
                 </div>
               </div>
 
-              {donation.status === 'verified' && donation.certificateUrl && (
+              {donation.status === 'completed' && donation.certificate && (
                 <Button
-                  onClick={() => downloadCertificate(donation.certificateUrl!)}
+                  onClick={() => downloadCertificate(donation.certificate!.url)}
                   className="w-full"
                   variant="outline"
                 >
@@ -177,4 +177,4 @@ const MyDonations = () => {
   );
 };
 
-export default MyDonations; 
+export default MyDonations;
