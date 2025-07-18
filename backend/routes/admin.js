@@ -338,26 +338,6 @@ router.get('/analytics', [auth, isAdmin], async (req, res) => {
       count: users.filter(user => user.bloodType === type).length || 0
     }));
 
-    // Calculate monthly donations
-    const monthlyDonations = [];
-    const months = timeRange === 'year' ? 12 : timeRange === 'month' ? 1 : 0;
-    for (let i = months; i >= 0; i--) {
-      const month = new Date();
-      month.setMonth(now.getMonth() - i);
-      const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-      const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-      
-      const count = donations.filter(d => {
-        const donationDate = new Date(d.donationDate);
-        return donationDate >= monthStart && donationDate <= monthEnd;
-      }).length;
-
-      monthlyDonations.push({ 
-        month: month.toLocaleString('default', { month: 'short' }), 
-        donations: count 
-      });
-    }
-
     // Calculate camp statistics
     const campStatuses = ['pending', 'approved', 'completed', 'cancelled'];
     const campStatistics = campStatuses.map(status => ({
