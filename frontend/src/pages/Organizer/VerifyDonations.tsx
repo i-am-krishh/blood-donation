@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Phone, Mail, Calendar, MapPin, Clock, Users } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Calendar, MapPin, Clock, Users, Check } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 
 interface Camp {
@@ -38,6 +38,7 @@ const VerifyDonations = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'registered' | 'donated' | 'cancelled'>('all');
   const [bloodTypeFilter, setBloodTypeFilter] = useState<string>('all');
+  const [processingDonations, setProcessingDonations] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchCamps();
@@ -93,7 +94,12 @@ const VerifyDonations = () => {
   };
 
   const handleDonationConfirm = async (registration: Registration) => {
+    if (processingDonations.has(registration._id)) return;
+
     try {
+      setProcessingDonations(prev => new Set(prev).add(registration._id));
+      setError(null);
+
       // 1. Start verification process
       const verifyResponse = await fetch(
         `/api/verification/start/${registration.donorId._id}/${selectedCampId}`,
@@ -112,7 +118,7 @@ const VerifyDonations = () => {
       }
       const verificationData = await verifyResponse.json();
 
-      // 2. Complete donation verification
+      // 2. Complete donation verification with post-donation care
       const completeResponse = await fetch(
         `/api/verification/${verificationData.verificationId}/complete`,
         {
@@ -123,9 +129,12 @@ const VerifyDonations = () => {
           },
           body: JSON.stringify({
             status: 'completed',
-            donationDate: new Date().toISOString(),
-            bloodType: registration.donorId.bloodType,
-            quantity: 1
+            postDonationCare: {
+              refreshments: true,
+              restPeriod: 15,
+              followUpInstructions: 'Rest well and stay hydrated for the next 24 hours. Avoid heavy lifting and strenuous activities.'
+            },
+            complications: ''
           })
         }
       );
@@ -136,29 +145,64 @@ const VerifyDonations = () => {
       }
 
       // 3. Generate certificate
-      const certificateResponse = await fetch('/api/certificates/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          donorId: registration.donorId._id,
-          campId: selectedCampId,
-          donationDate: new Date().toISOString(),
-          bloodType: registration.donorId.bloodType
-        })
-      });
+      try {
+        const certificateResponse = await fetch('/api/certificates/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            donorId: registration.donorId._id,
+            campId: selectedCampId,
+            donationDate: new Date().toISOString(),
+            bloodType: registration.donorId.bloodType
+          })
+        });
 
-      if (!certificateResponse.ok) {
-        console.error('Failed to generate certificate');
+        if (!certificateResponse.ok) {
+          console.error('Certificate generation failed - will be handled by admin');
+        }
+      } catch (certError) {
+        console.error('Certificate generation error:', certError);
+        // Don't throw error here - certificate generation is not critical for donation completion
       }
 
-      // Refresh registrations list
-      await fetchRegistrations(selectedCampId);
+      // Update local state to show completed status immediately
+      setRegistrations(prev =>
+        prev.map(reg =>
+          reg._id === registration._id
+            ? { ...reg, status: 'donated' }
+            : reg
+        )
+      );
+
+      // Show success message with slide animation
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-500 ease-in-out';
+      successMessage.textContent = 'Donation completed successfully!';
+      document.body.appendChild(successMessage);
+
+      // Trigger slide-in animation
+      setTimeout(() => {
+        successMessage.style.transform = 'translateX(0)';
+      }, 100);
+
+      // Remove success message after 3 seconds with slide-out animation
+      setTimeout(() => {
+        successMessage.style.transform = 'translateX(150%)';
+        setTimeout(() => document.body.removeChild(successMessage), 500);
+      }, 3000);
+
     } catch (err) {
       console.error('Donation verification error:', err);
       setError(err instanceof Error ? err.message : 'Failed to process donation');
+    } finally {
+      setProcessingDonations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(registration._id);
+        return newSet;
+      });
     }
   };
 
@@ -293,7 +337,13 @@ const VerifyDonations = () => {
       {/* Registrations List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredRegistrations.map((registration) => (
-          <div key={registration._id} className="bg-white rounded-lg shadow-md p-6">
+          <div key={registration._id} className="bg-white rounded-lg shadow-md p-6 relative overflow-hidden">
+            {/* Success overlay for completed donations */}
+            {registration.status === 'donated' && (
+              <div className="absolute inset-0 bg-green-50 bg-opacity-50 flex items-center justify-center">
+                <Check className="w-16 h-16 text-green-500" />
+              </div>
+            )}
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold text-gray-800">{registration.donorId.name}</h3>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -301,7 +351,8 @@ const VerifyDonations = () => {
                 registration.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                 'bg-yellow-100 text-yellow-800'
               }`}>
-                {registration.status.charAt(0).toUpperCase() + registration.status.slice(1)}
+                {registration.status === 'donated' ? 'Completed' : 
+                 registration.status.charAt(0).toUpperCase() + registration.status.slice(1)}
               </span>
             </div>
             <div className="space-y-2 text-sm text-gray-600">
@@ -324,10 +375,24 @@ const VerifyDonations = () => {
             </div>
             {registration.status === 'registered' && (
               <Button
-                className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white"
+                className={`w-full mt-4 relative ${
+                  processingDonations.has(registration._id)
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                } text-white transition-colors duration-200`}
                 onClick={() => handleDonationConfirm(registration)}
+                disabled={processingDonations.has(registration._id)}
               >
-                Confirm Donation
+                {processingDonations.has(registration._id) ? (
+                  <>
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </span>
+                    <span className="opacity-0">Confirming...</span>
+                  </>
+                ) : (
+                  'Confirm Donation'
+                )}
               </Button>
             )}
           </div>

@@ -338,12 +338,8 @@ const AllDonations = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    donation.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    donation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(donation.status)}`}>
+                    {donation.status === 'completed' ? 'Completed' : donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
@@ -387,3 +383,16 @@ const AllDonations = () => {
 };
 
 export default AllDonations; 
+
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'rejected':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};

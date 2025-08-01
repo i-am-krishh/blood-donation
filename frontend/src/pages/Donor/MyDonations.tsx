@@ -57,7 +57,7 @@ const MyDonations = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'pending':
@@ -108,10 +108,8 @@ const MyDonations = () => {
                 <h3 className="text-lg font-semibold text-gray-800">
                   {donation.camp.name}
                 </h3>
-                <span
-                  className={`px-2 py-1 rounded text-sm ${getStatusColor(donation.status)}`}
-                >
-                  {donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
+                <span className={`px-2 py-1 rounded text-sm ${getStatusColor(donation.status)}`}>
+                  {donation.status === 'completed' ? 'Completed' : donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
                 </span>
               </div>
 
@@ -136,10 +134,10 @@ const MyDonations = () => {
               {donation.status === 'completed' && donation.certificate && (
                 <Button
                   onClick={() => downloadCertificate(donation.certificate!.url)}
-                  className="w-full"
+                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
                   variant="outline"
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <Download className="w-4 h-4" />
                   Download Certificate
                 </Button>
               )}

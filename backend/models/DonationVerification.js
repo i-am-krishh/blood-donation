@@ -29,62 +29,58 @@ const donationVerificationSchema = new mongoose.Schema({
   medicalChecks: {
     type: {
       hemoglobin: {
-        value: { type: Number, required: true },
-        isPass: { type: Boolean, required: true }
+        value: { type: Number },
+        isPass: { type: Boolean }
       },
       bloodPressure: {
-        systolic: { type: Number, required: true },
-        diastolic: { type: Number, required: true },
-        isPass: { type: Boolean, required: true }
+        systolic: { type: Number },
+        diastolic: { type: Number },
+        isPass: { type: Boolean }
       },
       weight: {
-        value: { type: Number, required: true },
-        isPass: { type: Boolean, required: true }
+        value: { type: Number },
+        isPass: { type: Boolean }
       },
       pulse: {
-        value: { type: Number, required: true },
-        isPass: { type: Boolean, required: true }
+        value: { type: Number },
+        isPass: { type: Boolean }
       },
       temperature: {
-        value: { type: Number, required: true },
-        isPass: { type: Boolean, required: true }
+        value: { type: Number },
+        isPass: { type: Boolean }
       }
-    },
-    required: true
+    }
   },
   // Health screening
   healthScreening: {
     type: {
-      recentIllness: { type: Boolean, required: true },
-      medications: { type: Boolean, required: true },
-      allergies: { type: Boolean, required: true },
-      recentSurgery: { type: Boolean, required: true },
-      pregnancyStatus: { type: Boolean, required: true },
+      recentIllness: { type: Boolean },
+      medications: { type: Boolean },
+      allergies: { type: Boolean },
+      recentSurgery: { type: Boolean },
+      pregnancyStatus: { type: Boolean },
       lastDonationDate: { type: Date },
       notes: { type: String }
-    },
-    required: true
+    }
   },
   // Donation details
   donationDetails: {
     type: {
-      bloodBagNumber: { type: String, required: true },
-      quantity: { type: Number, required: true }, // in ml
-      startTime: { type: Date, required: true },
-      endTime: { type: Date, required: true },
+      bloodBagNumber: { type: String },
+      quantity: { type: Number, default: 1 }, // in units
+      startTime: { type: Date },
+      endTime: { type: Date },
       complications: { type: String }
-    },
-    required: true
+    }
   },
   // Post-donation care
   postDonationCare: {
     type: {
-      refreshmentsTaken: { type: Boolean, required: true },
-      restingTime: { type: Number, required: true }, // in minutes
-      afterEffects: { type: String },
-      recommendations: { type: String }
-    },
-    required: true
+      refreshments: { type: Boolean, default: true },
+      restPeriod: { type: Number, default: 15 }, // in minutes
+      followUpInstructions: { type: String },
+      complications: { type: String, default: '' }
+    }
   },
   status: {
     type: String,
@@ -101,4 +97,4 @@ const donationVerificationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('DonationVerification', donationVerificationSchema); 
+module.exports = mongoose.model('DonationVerification', donationVerificationSchema);
