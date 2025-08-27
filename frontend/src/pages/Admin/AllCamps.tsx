@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, Calendar, MapPin, Clock, Users, Search, UserCheck, CheckCircle, XCircle, BarChart } from 'lucide-react';
+import { Edit2, Trash2, Calendar, MapPin, Clock, Users, Search, CheckCircle, XCircle, BarChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaRegCalendarCheck, FaRegCalendarTimes, FaUsersCog } from 'react-icons/fa';
 import { Button } from '../../components/ui/button';

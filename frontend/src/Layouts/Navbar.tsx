@@ -4,6 +4,7 @@ import { Menu, X, ChevronDown, LogOut, User, Settings, Activity, Droplet, FileTe
 import { motion } from 'framer-motion';
 import { Button } from '../components/ui/button';
 import { useUser } from '../context/UserContext';
+import { LogOut, Menu, User, Bell } from "lucide-react"
 
 interface NavItem {
   label: string;

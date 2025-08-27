@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Award, Download, Clock } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import axios from 'axios';
+import { toast } from 'react-toastify';
 
 interface Donation {
   _id: string;
@@ -69,6 +71,24 @@ const MyDonations = () => {
     }
   };
 
+  const handleCertificateDownload = async (verificationId: string) => {
+    try {
+      const response = await axios.get(`/api/verifications/${verificationId}`);
+      const verification = response.data.verification;
+
+      if (!verification.certificateUrl) {
+        toast.info('Certificate is being generated. Please try again in a few moments.');
+        return;
+      }
+
+      // Open certificate URL in new tab
+      window.open(verification.certificateUrl, '_blank');
+    } catch (error) {
+      console.error('Error downloading certificate:', error);
+      toast.error('Failed to download certificate');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -131,13 +151,19 @@ const MyDonations = () => {
                 </div>
               </div>
 
-              {donation.status === 'completed' && donation.certificate && (
+              {/* Replace the existing certificate button with this */}
+              {donation.status === 'completed' && (
                 <Button
-                  onClick={() => downloadCertificate(donation.certificate!.url)}
-                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
-                  variant="outline"
+                  onClick={() => handleCertificateDownload(donation.verificationId)}
+                  variant="contained"
+                  color="secondary"
+                  style={{
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    marginLeft: '10px'
+                  }}
+                  startIcon={<DownloadIcon />}
                 >
-                  <Download className="w-4 h-4" />
                   Download Certificate
                 </Button>
               )}

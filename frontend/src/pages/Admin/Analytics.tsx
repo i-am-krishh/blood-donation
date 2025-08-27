@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { Calendar, Users, Droplet, MapPin, Activity, Award, Clock } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { BarChart, LineChart, PieChart } from '../../components/Charts';
+import { Card } from '../../components/ui/card';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/ui/use-toast';
@@ -11,26 +13,12 @@ interface AnalyticsData {
   totalDonors: number;
   totalOrganizers: number;
   totalDonations: number;
-  recentDonations: number; // Add this field
   totalCamps: number;
-  bloodTypeDistribution: {
-    type: string;
-    count: number;
-  }[];
-  monthlyDonations: {
-    month: string;
-    donations: number;
-  }[];
-  campStatistics: {
-    status: string;
-    count: number;
-  }[];
-  recentActivity: {
-    id: string;
-    type: 'donation' | 'camp' | 'registration';
-    description: string;
-    date: string;
-  }[];
+  bloodTypeDistribution: Record<string, number>;
+  monthlyDonations: Array<{ month: string; count: number }>;
+  campStatistics: Array<{ name: string; registrations: number; donations: number }>;
+  recentActivity: Array<{ type: string; description: string; date: string }>;
+  recentDonations: Array<{ donor: string; camp: string; date: string }>;
 }
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#14b8a6', '#0ea5e9', '#6366f1'];

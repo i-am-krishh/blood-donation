@@ -222,11 +222,13 @@ exports.completeDonation = async (req, res) => {
       return res.status(404).json({ message: 'Verification record not found' });
     }
 
-    // Update donation details
-    verification.donationDetails.endTime = new Date();
-    verification.donationDetails.complications = complications || '';
-    verification.postDonationCare = postDonationCare;
+    // Update verification status and details
     verification.status = 'completed';
+    verification.postDonationCare = postDonationCare;
+    verification.donationDetails = {
+      ...verification.donationDetails,
+      complications: complications || ''
+    };
     await verification.save();
 
     // Update donation record
@@ -246,6 +248,33 @@ exports.completeDonation = async (req, res) => {
     await User.findByIdAndUpdate(verification.donorId, {
       lastDonation: new Date()
     });
+
+    // Generate certificate
+    try {
+      const certificateResponse = await fetch('http://localhost:5000/api/certificates/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`
+        },
+        body: JSON.stringify({
+          donorId: verification.donorId,
+          campId: verification.campId,
+          donationDate: new Date(),
+          verificationId: verification._id
+        })
+      });
+
+      if (certificateResponse.ok) {
+        const certificateData = await certificateResponse.json();
+        verification.certificateGenerated = true;
+        verification.certificateUrl = certificateData.url;
+        await verification.save();
+      }
+    } catch (certError) {
+      console.error('Certificate generation error:', certError);
+      // Don't throw error - certificate can be generated later by admin
+    }
 
     // Create notification
     await Notification.create({

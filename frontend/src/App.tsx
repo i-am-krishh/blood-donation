@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom";
 import AppRoutes from './AppRoutes';
 import { UserProvider } from "./context/UserContext";
 import { Toaster } from './components/ui/toaster';
+import { useEffect } from 'react'
 
 
 function App() {

@@ -93,116 +93,33 @@ const VerifyDonations = () => {
     }
   };
 
-  const handleDonationConfirm = async (registration: Registration) => {
-    if (processingDonations.has(registration._id)) return;
-
+  const handleDonationConfirm = async (registration: any) => {
     try {
-      setProcessingDonations(prev => new Set(prev).add(registration._id));
-      setError(null);
-
-      // 1. Start verification process
-      const verifyResponse = await fetch(
-        `/api/verification/start/${registration.donorId._id}/${selectedCampId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-
-      if (!verifyResponse.ok) {
-        const errorData = await verifyResponse.json();
-        throw new Error(errorData.message || 'Failed to start verification process');
-      }
-      const verificationData = await verifyResponse.json();
-
-      // 2. Complete donation verification with post-donation care
-      const completeResponse = await fetch(
-        `/api/verification/${verificationData.verificationId}/complete`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            status: 'completed',
-            postDonationCare: {
-              refreshments: true,
-              restPeriod: 15,
-              followUpInstructions: 'Rest well and stay hydrated for the next 24 hours. Avoid heavy lifting and strenuous activities.'
-            },
-            complications: ''
-          })
-        }
-      );
-
-      if (!completeResponse.ok) {
-        const errorData = await completeResponse.json();
-        throw new Error(errorData.message || 'Failed to complete donation verification');
-      }
-
-      // 3. Generate certificate
-      try {
-        const certificateResponse = await fetch('/api/certificates/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            donorId: registration.donorId._id,
-            campId: selectedCampId,
-            donationDate: new Date().toISOString(),
-            bloodType: registration.donorId.bloodType
-          })
-        });
-
-        if (!certificateResponse.ok) {
-          console.error('Certificate generation failed - will be handled by admin');
-        }
-      } catch (certError) {
-        console.error('Certificate generation error:', certError);
-        // Don't throw error here - certificate generation is not critical for donation completion
-      }
-
-      // Update local state to show completed status immediately
-      setRegistrations(prev =>
-        prev.map(reg =>
-          reg._id === registration._id
-            ? { ...reg, status: 'donated' }
-            : reg
-        )
-      );
-
-      // Show success message with slide animation
-      const successMessage = document.createElement('div');
-      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-500 ease-in-out';
-      successMessage.textContent = 'Donation completed successfully!';
-      document.body.appendChild(successMessage);
-
-      // Trigger slide-in animation
-      setTimeout(() => {
-        successMessage.style.transform = 'translateX(0)';
-      }, 100);
-
-      // Remove success message after 3 seconds with slide-out animation
-      setTimeout(() => {
-        successMessage.style.transform = 'translateX(150%)';
-        setTimeout(() => document.body.removeChild(successMessage), 500);
-      }, 3000);
-
-    } catch (err) {
-      console.error('Donation verification error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to process donation');
-    } finally {
-      setProcessingDonations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(registration._id);
-        return newSet;
+      setLoadingDonationId(registration._id);
+      const verificationResponse = await axios.post('/api/verifications/start', {
+        donorId: registration.donorId._id,
+        campId: registration.campId,
+        verifiedBy: user._id
       });
+  
+      const verificationId = verificationResponse.data.verification._id;
+  
+      await axios.post(`/api/verifications/${verificationId}/complete`, {
+        postDonationCare: {
+          refreshments: 'Juice and cookies provided',
+          restPeriod: 15,
+          followUpInstructions: 'Rest well and stay hydrated for the next 24 hours. Avoid heavy lifting and strenuous activities.'
+        },
+        complications: ''
+      });
+  
+      toast.success('Donation confirmed successfully!');
+      fetchCampRegistrations();
+    } catch (error) {
+      console.error('Error confirming donation:', error);
+      toast.error('Failed to confirm donation');
+    } finally {
+      setLoadingDonationId(null);
     }
   };
 
@@ -338,42 +255,14 @@ const VerifyDonations = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredRegistrations.map((registration) => (
           <div key={registration._id} className="bg-white rounded-lg shadow-md p-6 relative overflow-hidden">
-            {/* Success overlay for completed donations */}
-            {registration.status === 'donated' && (
-              <div className="absolute inset-0 bg-green-50 bg-opacity-50 flex items-center justify-center">
-                <Check className="w-16 h-16 text-green-500" />
-              </div>
-            )}
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">{registration.donorId.name}</h3>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                registration.status === 'donated' ? 'bg-green-100 text-green-800' :
-                registration.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                'bg-yellow-100 text-yellow-800'
-              }`}>
-                {registration.status === 'donated' ? 'Completed' : 
-                 registration.status.charAt(0).toUpperCase() + registration.status.slice(1)}
-              </span>
-            </div>
-            <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex items-center">
-                <Mail className="w-4 h-4 mr-2" />
-                {registration.donorId.email}
-              </div>
-              <div className="flex items-center">
-                <Phone className="w-4 h-4 mr-2" />
-                {registration.donorId.phone}
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium mr-2">Blood Type:</span>
-                {registration.donorId.bloodType}
-              </div>
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-2" />
-                {new Date(registration.registrationDate).toLocaleDateString('en-GB')}
-              </div>
-            </div>
-            {registration.status === 'registered' && (
+            {registration.status === 'donated' ? (
+              <Button
+                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white cursor-default"
+                disabled
+              >
+                Donated
+              </Button>
+            ) : registration.status === 'registered' ? (
               <Button
                 className={`w-full mt-4 relative ${
                   processingDonations.has(registration._id)
@@ -393,6 +282,13 @@ const VerifyDonations = () => {
                 ) : (
                   'Confirm Donation'
                 )}
+              </Button>
+            ) : (
+              <Button
+                className="w-full mt-4 bg-gray-400 cursor-not-allowed text-white"
+                disabled
+              >
+                Cancelled
               </Button>
             )}
           </div>
